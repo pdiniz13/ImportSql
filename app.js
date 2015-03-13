@@ -59,6 +59,18 @@ var getTreeInfo = function(req, res) {
   });
 };
 exports.getTreeInfo = getTreeInfo;
+var getTrees = function(req, res) {
+  pg.connect(conString, function(err, client, done) {
+    console.log(err);
+    var selectTrees = 'select tree.name, q.qspecies, q.picture, l.latitude, l.longitude from qspecies q join tree ON (q.qspeciesid = tree.qspeciesid) join "location" l ON (l.locationid = tree.locationid) LIMIT 25;';
+    client.query(selectTrees, function(error, results) {
+    }, function(error, results) {
+      done();
+      console.log(results.rows);
+    });
+  })
+};
+exports.getTrees = getTrees;
 
 var postMessageFromUser = function(req, res) {
   var username = req.body.username;
@@ -76,6 +88,8 @@ var postMessageFromUser = function(req, res) {
 exports.getMessagesForUsers = getMessagesForUsers;
 
 
+
+getTrees('test', 'test');
 
 getTreeInfo("hello", "yes");
 

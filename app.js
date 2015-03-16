@@ -9,6 +9,7 @@ var routes = require('./routes/index');
 var users = require('./routes/users');
 var pg = require('pg');
 var async = require('async');
+var Cursor = require('pg-cursor');
 
 var app = express();
 app.use(logger('dev'));
@@ -23,11 +24,11 @@ var getMessagesForTree = function(req, res) {
   pg.connect(conString, function(err, client, done) {
     console.log(err);
     var selectMessages = "SELECT message FROM message WHERE treeid = $1 LIMIT 100;";
-    client.query(selectMessages, [treeid]);
-  }, function(error, results) {
-    res.send(results);
-  });
+    client.query(selectMessages, [treeid], function(error, results) {
+      res.send(results);
+    });
     done();
+  });
 };
 exports.getMessagesForTree = getMessagesForTree;
 
@@ -36,11 +37,11 @@ var getMessagesForUsers = function(req, res) {
   pg.connect(conString, function(err, client, done) {
     console.log(err);
     var selectMessages = "SELECT message FROM message WHERE username = $1;";
-    client.query(selectMessages, [username]);
-  }, function(error, results) {
-    res.send(results);
+    client.query(selectMessages, [username], function(error, results) {
+      res.send(results);
+    });
+    done();
   });
-  done();
 };
 exports.getMessagesForUsers = getMessagesForUsers;
 
@@ -49,7 +50,7 @@ var getTreeInfo = function(req, res) {
   var treeid = 50;
   pg.connect(conString, function(err, client, done) {
     console.log(err);
-    var selectMessages = 'select tree.name, q.qspecies, q.picture, tree.plantdate, l.latitude, l.longitude from qspecies q join tree ON (q.qspeciesid = tree.qspeciesid) join "location" l ON (l.locationid = tree.locationid) where treeid = $1;';
+    var selectMessages = 'SELECT tree.name, q.qspecies, tree.plantdate, l.latitude, l.longitude, image.imageurl, image.imagewidth, image.imageheight, image.imagetype from qspecies q JOIN tree ON (q.qspeciesid = tree.qspeciesid) JOIN "location" l ON (l.locationid = tree.locationid) JOIN image ON (q.qspeciesid = image.qspeciesid) WHERE treeid = $1;';
     client.query(selectMessages, [treeid], function(error, results) {
       //res.send(results);
       done();
@@ -59,18 +60,40 @@ var getTreeInfo = function(req, res) {
   });
 };
 exports.getTreeInfo = getTreeInfo;
+
 var getTrees = function(req, res) {
+  var offset = req.offset || 0;
   pg.connect(conString, function(err, client, done) {
     console.log(err);
-    var selectTrees = 'select tree.name, q.qspecies, q.picture, l.latitude, l.longitude from qspecies q join tree ON (q.qspeciesid = tree.qspeciesid) join "location" l ON (l.locationid = tree.locationid) LIMIT 25;';
-    client.query(selectTrees, function(error, results) {
-    }, function(error, results) {
+    var selectTrees = 'SELECT tree.name, q.qspecies, l.latitude, l.longitude, thumbnail.url, thumbnail.width, thumbnail.height, thumbnail.contenttype FROM qspecies q JOIN tree ON (q.qspeciesid = tree.qspeciesid) JOIN "location" l ON (l.locationid = tree.locationid) JOIN thumbnail ON (q.qspeciesid = thumbnail.qspeciesid) LIMIT 250 OFFSET $1;';
+    client.query(selectTrees, [offset], function(error, results) {
       done();
       console.log(results.rows);
     });
   })
 };
 exports.getTrees = getTrees;
+
+var searchTrees = function(req, res) {
+  var search = req.search;
+  var offset = req.offset || 0;
+  var search = "Briana";
+  var searchString = typeof search === "string" ? "%" + search + "%" : "do not use";
+  var searchNum = typeof search === "number" ? search : 0;
+  var offset = 0;
+  pg.connect(conString, function(err, client, done) {
+    console.log("in search trees");
+    console.log(err);
+    var selectTrees = 'SELECT tree.name, q.qspecies, l.latitude, l.longitude, thumbnail.url, thumbnail.width, thumbnail.height, thumbnail.contenttype FROM qspecies q JOIN tree ON (q.qspeciesid = tree.qspeciesid) JOIN "location" l ON (l.locationid = tree.locationid) JOIN thumbnail ON (q.qspeciesid = thumbnail.qspeciesid) WHERE tree.treeid = $1 OR tree.name LIKE $2 OR q.qspecies = $2 OR q.qspeciesid = $1 LIMIT 250 OFFSET $3;';
+    client.query(selectTrees, [searchNum, searchString, offset], function(error, results){
+      console.log('error', error);
+      //console.log('results', results);
+      console.log(results.rows);
+      done();
+    });
+  })
+};
+exports.searchTrees = searchTrees;
 
 var postMessageFromUser = function(req, res) {
   var username = req.body.username;
@@ -79,18 +102,16 @@ var postMessageFromUser = function(req, res) {
   pg.connect(conString, function(err, client, done) {
     console.log(err);
     var insertMessages = "INSERT INTO message (message, username, treeid) values ($1, $2, $3);";
-    client.query(insertMessages, [message, username, treeid]);
-  }, function(error, results) {
-    res.send(results);
+    client.query(insertMessages, [message, username, treeid], function(error, results) {
+      res.send(results);
+      done();
+    });
   });
-  done();
 };
-exports.getMessagesForUsers = getMessagesForUsers;
+exports.postMessageFromUser = postMessageFromUser;
 
+searchTrees('test', 'test');
 
-
-getTrees('test', 'test');
-
-getTreeInfo("hello", "yes");
+//getTreeInfo("hello", "yes");
 
 module.exports = app;
